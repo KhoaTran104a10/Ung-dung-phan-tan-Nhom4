@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TinyDB Phân tán</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Dashboard - Prototype TinyDB Phân tán 🚀</h1>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <div class="card">
+                <h2>Trạng thái hệ thống</h2>
+                <ul class="node-status-list">
+                    {% for node in nodes %}
+                        <li>
+                            <span class="status-dot online"></span>
+                            <span class="node-role">{{ node.role }}</span>
+                            <span class="node-url">{{ node.url }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            
+            {% if message %}
+                <div class="message {{ message_type }}">{{ message }}</div>
+            {% endif %}
+
+            <div class="features-grid">
+                <div class="card">
+                    <h2>Tính năng 1: Sao chép (Leader-Follower)</h2>
+                    <p>Thêm bản ghi mới. Dữ liệu sẽ được ghi vào Leader và sao chép đến tất cả Follower.</p>
+                    <form action="/insert" method="POST" class="feature-form">
+                        <label for="name">Tên:</label>
+                        <input type="text" id="name" name="name" required>
+                        
+                        <label for="age">Tuổi:</label>
+                        <input type="number" id="age" name="age" required>
+                        
+                        <label for="city">Thành phố:</label>
+                        <input type="text" id="city" name="city" placeholder="Ví dụ: Paris" required>
+                        
+                        <button type="submit">Chèn (Insert)</button>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h2>Tính năng 2: Truy vấn song song (Scatter-Gather)</h2>
+                    <p>Tìm kiếm trên tất cả các nút. Điền các trường muốn lọc (tìm kiếm AND).</p>
+                    <form action="/search" method="POST" class="feature-form">
+                        
+                        <label for="search_name">Tên (chứa):</label>
+                        <input type="text" id="search_name" name="name" placeholder="Ví dụ: Alice">
+                
+                        <label for="search_age">Tuổi (bằng):</label>
+                        <input type="number" id="search_age" name="age" placeholder="Ví dụ: 25">
+                
+                        <label for="search_city">Thành phố (chứa):</label>
+                        <input type="text" id="search_city" name="city" placeholder="Ví dụ: London">
+                        
+                        <button type="submit">Tìm kiếm (Search)</button>
+                    </form>
+                </div>
+            </div>
+
+            {% if results is not none %}
+                <div class="card results-card">
+                    <h2>Kết quả tìm kiếm: ({{ results|length }} bản ghi)</h2>
+                    {% if results %}
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Nguồn (Node)</th> <th>Tên</th>
+                                    <th>Tuổi</th>
+                                    <th>Thành phố</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in results %}
+                                    <tr class="source-{{ item.source_node | replace(' ', '-') | replace('(', '') | replace(')', '') | lower }}">
+                                        <td class="node-source-cell">
+                                            <span class="node-badge">{{ item.source_node }}</span>
+                                        </td>
+                                        <td>{{ item.name }}</td>
+                                        <td>{{ item.age }}</td>
+                                        <td>{{ item.city }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>Không tìm thấy kết quả nào cho truy vấn này.</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>
