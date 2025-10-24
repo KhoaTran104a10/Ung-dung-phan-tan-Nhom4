@@ -18,13 +18,24 @@
                 <ul class="node-status-list">
                     {% for node in nodes %}
                         <li>
-                            <span class="status-dot online"></span>
+                            <span class="status-dot {{ 'online' if node.status == 'Online' else 'offline' }}"></span>
                             <span class="node-role">{{ node.role }}</span>
-                            <span class="node-url">{{ node.url }}</span>
+                            <span class="node-status">{{ node.status }}</span>
                         </li>
                     {% endfor %}
                 </ul>
             </div>
+
+            {% if log_messages %}
+            <div class="card log-card">
+                <h2>Nhật ký hoạt động</h2>
+                <ul class="log-list">
+                    {% for log in log_messages %}
+                        <li class="log-entry">{{ log }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </aside>
 
         <main class="main-content">
@@ -36,35 +47,26 @@
             <div class="features-grid">
                 <div class="card">
                     <h2>Tính năng 1: Sao chép (Leader-Follower)</h2>
-                    <p>Thêm bản ghi mới. Dữ liệu sẽ được ghi vào Leader và sao chép đến tất cả Follower.</p>
                     <form action="/insert" method="POST" class="feature-form">
                         <label for="name">Tên:</label>
                         <input type="text" id="name" name="name" required>
-                        
                         <label for="age">Tuổi:</label>
                         <input type="number" id="age" name="age" required>
-                        
                         <label for="city">Thành phố:</label>
                         <input type="text" id="city" name="city" placeholder="Ví dụ: Paris" required>
-                        
                         <button type="submit">Chèn (Insert)</button>
                     </form>
                 </div>
 
                 <div class="card">
                     <h2>Tính năng 2: Truy vấn song song (Scatter-Gather)</h2>
-                    <p>Tìm kiếm trên tất cả các nút. Điền các trường muốn lọc (tìm kiếm AND).</p>
                     <form action="/search" method="POST" class="feature-form">
-                        
                         <label for="search_name">Tên (chứa):</label>
                         <input type="text" id="search_name" name="name" placeholder="Ví dụ: Alice">
-                
                         <label for="search_age">Tuổi (bằng):</label>
                         <input type="number" id="search_age" name="age" placeholder="Ví dụ: 25">
-                
                         <label for="search_city">Thành phố (chứa):</label>
                         <input type="text" id="search_city" name="city" placeholder="Ví dụ: London">
-                        
                         <button type="submit">Tìm kiếm (Search)</button>
                     </form>
                 </div>
@@ -77,10 +79,11 @@
                         <table class="results-table">
                             <thead>
                                 <tr>
-                                    <th>Nguồn (Node)</th> <th>Tên</th>
+                                    <th>Nguồn (Node)</th>
+                                    <th>Tên</th>
                                     <th>Tuổi</th>
                                     <th>Thành phố</th>
-                                </tr>
+                                    <th>Hành động</th> </tr>
                             </thead>
                             <tbody>
                                 {% for item in results %}
@@ -91,6 +94,14 @@
                                         <td>{{ item.name }}</td>
                                         <td>{{ item.age }}</td>
                                         <td>{{ item.city }}</td>
+                                        <td class="action-buttons">
+                                            {% if item._id %}
+                                                <button class="btn-update" onclick="promptForUpdate('{{ item._id }}')">Sửa</button>
+                                                <button class="btn-delete" onclick="confirmDelete('{{ item._id }}')">Xóa</button>
+                                            {% else %}
+                                                <span class="no-action">Dữ liệu gốc</span>
+                                            {% endif %}
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -102,5 +113,42 @@
             {% endif %}
         </main>
     </div>
+
+    <script>
+        // Hàm POST data bằng form động
+        function post(path, params) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = path;
+
+            for (const key in params) {
+                if (params.hasOwnProperty(key)) {
+                    const hiddenField = document.createElement('input');
+                    hiddenField.type = 'hidden';
+                    hiddenField.name = key;
+                    hiddenField.value = params[key];
+                    form.appendChild(hiddenField);
+                }
+            }
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Hàm xử lý nút SỬA
+        function promptForUpdate(docId) {
+            const newCity = prompt("Nhập tên Thành phố mới cho bản ghi:\n(ID: " + docId.substring(0, 8) + "...)");
+            if (newCity && newCity.trim() !== "") {
+                post('/update', { doc_id: docId, new_city: newCity.trim() });
+            }
+        }
+
+        // Hàm xử lý nút XÓA
+        function confirmDelete(docId) {
+            const confirmed = confirm("Bạn có chắc chắn muốn XÓA bản ghi này không?\n(ID: " + docId.substring(0, 8) + "...)\n\nHành động này sẽ được sao chép đến tất cả các nút!");
+            if (confirmed) {
+                post('/delete', { doc_id: docId });
+            }
+        }
+    </script>
 </body>
 </html>

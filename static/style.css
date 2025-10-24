@@ -11,8 +11,17 @@
     --success-text: #155724;
     --error-bg: #f8d7da;
     --error-text: #721c24;
-    --online-color: #28a745;
     
+    /* 2. Màu trạng thái */
+    --online-color: #28a745;
+    --offline-color: #dc3545;
+    
+    /* 1. Màu nút Sửa/Xóa */
+    --update-color: #ffc107;
+    --update-hover: #e0a800;
+    --delete-color: #dc3545;
+    --delete-hover: #c82333;
+
     /* Màu cho các Node */
     --leader-color: #007bff;
     --follower1-color: #28a745;
@@ -35,10 +44,7 @@ header {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-header h1 {
-    margin: 0;
-    font-size: 1.5rem;
-}
+header h1 { margin: 0; font-size: 1.5rem; }
 
 .container {
     display: flex;
@@ -49,15 +55,8 @@ header h1 {
     padding: 0 2rem;
 }
 
-.sidebar {
-    flex: 1;
-    min-width: 300px;
-}
-
-.main-content {
-    flex: 3;
-    min-width: 500px;
-}
+.sidebar { flex: 1; min-width: 300px; }
+.main-content { flex: 3; min-width: 500px; }
 
 .card {
     background: var(--card-bg);
@@ -75,175 +74,116 @@ header h1 {
     margin-top: 0;
 }
 
-/* Sidebar: Node Status */
-.node-status-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
+/* 2. Trạng thái hệ thống (Cập nhật) */
+.node-status-list { list-style: none; padding: 0; margin: 0; }
 .node-status-list li {
     display: flex;
     align-items: center;
     padding: 0.75rem 0;
     border-bottom: 1px solid #f0f0f0;
 }
-
-.node-status-list li:last-child {
-    border-bottom: none;
-}
-
+.node-status-list li:last-child { border-bottom: none; }
 .status-dot {
     width: 12px;
     height: 12px;
     border-radius: 50%;
     margin-right: 0.75rem;
+    flex-shrink: 0; /* Ngăn co lại */
 }
 .status-dot.online {
     background-color: var(--online-color);
     box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
 }
-
-.node-role {
-    font-weight: 600;
-    color: #555;
-    margin-right: 0.5rem;
+.status-dot.offline {
+    background-color: var(--offline-color);
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.5);
 }
-
-.node-url {
-    font-family: 'Courier New', Courier, monospace;
+.node-role { font-weight: 600; color: #555; margin-right: auto; }
+.node-status {
     font-size: 0.9rem;
-    color: #777;
-}
-
-/* Main Content: Features */
-.features-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-}
-
-.feature-form label {
-    display: block;
-    margin-top: 1rem;
-    margin-bottom: 0.25rem;
     font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.node-status-list li:has(.online) .node-status { color: var(--online-color); background-color: #eaf6ec; }
+.node-status-list li:has(.offline) .node-status { color: var(--offline-color); background-color: #fbebee; }
+
+
+/* 4. Nhật ký hoạt động (Mới) */
+.log-card {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.log-card h2 { color: #6c757d; }
+.log-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+}
+.log-entry {
+    padding: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    color: #333;
+}
+.log-entry:last-child { border-bottom: none; }
+.log-entry:before {
+    content: "> ";
+    color: var(--primary-color);
+    font-weight: bold;
 }
 
+/* Form (Không đổi) */
+.features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.feature-form label { display: block; margin-top: 1rem; margin-bottom: 0.25rem; font-weight: 600; }
 .feature-form input[type="text"],
 .feature-form input[type="number"],
-.feature-form select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    box-sizing: border-box; /* Important for 100% width */
-}
-
-.feature-form button {
-    margin-top: 1.5rem;
-    padding: 0.75rem 1.5rem;
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: background-color 0.2s ease;
-}
-
-.feature-form button:hover {
-    background-color: var(--primary-hover);
-}
+.feature-form select { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
+.feature-form button { margin-top: 1.5rem; padding: 0.75rem 1.5rem; background-color: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; transition: background-color 0.2s ease; }
+.feature-form button:hover { background-color: var(--primary-hover); }
 
 /* Messages */
-.message {
-    padding: 1rem;
-    margin-bottom: 1.5rem;
+.message { padding: 1rem; margin-bottom: 1.5rem; border-radius: 4px; font-weight: 600; }
+.message.success { background-color: var(--success-bg); color: var(--success-text); }
+.message.error { background-color: var(--error-bg); color: var(--error-text); }
+
+/* Bảng kết quả (Cập nhật) */
+.results-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.results-table th, .results-table td { border-bottom: 1px solid var(--border-color); padding: 0.85rem 1rem; text-align: left; }
+.results-table th { background-color: #f9fafb; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
+.results-table tr:hover { background-color: #f5f5f5; }
+
+.node-source-cell { width: 160px; }
+.node-badge { display: inline-block; padding: 0.25em 0.6em; font-size: 0.85em; font-weight: 600; border-radius: 12px; font-family: 'Courier New', Courier, monospace; color: white; background-color: var(--default-node-color); }
+
+/* Màu badge */
+tr[class*="source-leader"] .node-badge { background-color: var(--leader-color); }
+tr[class*A*="source-follower-1"] .node-badge { background-color: var(--follower1-color); }
+tr[class*="source-follower-2"] .node-badge { background-color: var(--follower2-color); }
+
+/* 1. Cột hành động (Mới) */
+.action-buttons { width: 130px; text-align: right; }
+.action-buttons button {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+    border: none;
     border-radius: 4px;
-    font-weight: 600;
-}
-.message.success {
-    background-color: var(--success-bg);
-    color: var(--success-text);
-}
-.message.error {
-    background-color: var(--error-bg);
-    color: var(--error-text);
-}
-
-/* *** CẬP NHẬT BẢNG KẾT QUẢ *** */
-.results-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-}
-
-.results-table th, .results-table td {
-    border-bottom: 1px solid var(--border-color);
-    padding: 0.85rem 1rem;
-    text-align: left;
-}
-
-.results-table th {
-    background-color: #f9fafb;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #555;
-}
-
-.results-table tr:nth-child(even) {
-    background-color: #fdfdfd;
-}
-
-.results-table tr:hover {
-    background-color: #f5f5f5;
-}
-
-/* Kiểu cho ô Nguồn (Node) */
-.node-source-cell {
-    width: 180px; /* Cho cột nguồn rộng hơn một chút */
-}
-
-.node-badge {
-    display: inline-block;
-    padding: 0.25em 0.6em;
-    font-size: 0.85em;
-    font-weight: 600;
-    border-radius: 12px;
-    font-family: 'Courier New', Courier, monospace;
     color: white;
-    background-color: var(--default-node-color); /* Màu mặc định */
+    cursor: pointer;
+    margin-left: 5px;
+    font-weight: 600;
 }
+.action-buttons .btn-update { background-color: var(--update-color); color: #333; }
+.action-buttons .btn-update:hover { background-color: var(--update-hover); }
+.action-buttons .btn-delete { background-color: var(--delete-color); }
+.action-buttons .btn-delete:hover { background-color: var(--delete-hover); }
+.no-action { font-size: 0.8rem; color: #888; font-style: italic; }
 
-/* Thêm màu sắc cho từng node dựa trên class của <tr> */
-/* class .source-leader-5000 */
-tr[class*="source-leader"] .node-badge {
-    background-color: var(--leader-color); 
-}
-/* class .source-follower-1-5001 */
-tr[class*="source-follower-1"] .node-badge {
-    background-color: var(--follower1-color);
-}
-/* class .source-follower-2-5002 */
-tr[class*="source-follower-2"] .node-badge {
-    background-color: var(--follower2-color);
-}
 
 /* Responsive */
 @media (max-width: 900px) {
-    .container {
-        flex-direction: column;
-        padding: 0 1rem;
-    }
-    .features-grid {
-        grid-template-columns: 1fr;
-    }
-    .sidebar, .main-content {
-        min-width: 100%;
-    }
+    .container { flex-direction: column; padding: 0 1rem; }
+    .features-grid { grid-template-columns: 1fr; }
+    .sidebar, .main-content { min-width: 100%; }
 }
