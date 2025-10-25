@@ -28,15 +28,15 @@ Giao diện web trực quan (viết bằng Flask) để thực hiện các thao 
 
 Kiểm tra sức khỏe (Health Check):
 
-Leader tự động kiểm tra trạng thái "Online" / "Offline" của các Follower thông qua API /health.
+Leader tự động kiểm tra trạng thái "Online" / "Offline" của các Follower thông qua API /health khi tải trang.
 
 Trạng thái được hiển thị trực tiếp trên UI (chấm xanh/đỏ).
 
 Mô phỏng lỗi (Fault Tolerance Demo):
 
-Cho phép người dùng chủ động "Tắt" một nút Follower ngay từ giao diện web.
+Hệ thống có thể phát hiện khi một nút Follower bị tắt (ví dụ: tắt thủ công terminal).
 
-Khi một nút bị tắt, Leader sẽ nhận diện nó là "Offline" và tự động bỏ qua nút đó khi sao chép dữ liệu mới, chứng minh khả năng chịu lỗi.
+Leader sẽ nhận diện nó là "Offline" và tự động bỏ qua nút đó khi sao chép dữ liệu mới, chứng minh khả năng chịu lỗi.
 
 Nhật ký hoạt động (Live Logging):
 
@@ -54,6 +54,8 @@ TinyDB: CSDL NoSQL lưu trữ (dưới dạng file JSON).
 Requests: Để giao tiếp (gọi API) giữa các nút.
 
 📁 Cấu trúc thư mục
+(Kiến trúc này sử dụng các file leader.py và follower.py riêng biệt)
+
 distributed_tinydb/
 ├── data/                 # Chứa các file .json của TinyDB
 ├── nodes/
@@ -144,16 +146,21 @@ Bấm nút "Xóa" (màu đỏ) của một bản ghi "Grace".
 Kết quả: "Nhật ký" sẽ hiển thị logic replicate_delete và các bản ghi "Grace" khác cũng sẽ biến mất.
 
 Kịch bản 3: Mô phỏng lỗi (Fault Tolerance)
-Trên giao diện, trong mục "Trạng thái hệ thống", nhấn nút "Tắt 🛑" bên cạnh Follower 2 (5002).
+Đi đến Terminal 3 (nơi đang chạy Follower 2 (5002)).
 
-Xác nhận hộp thoại.
+Nhấn Ctrl+C trong terminal đó để tắt nó đi.
 
-Trang sẽ tải lại.
+Quay lại trình duyệt (http://127.0.0.1:5000) và tải lại trang (F5 hoặc Cmd+R).
 
-Kết quả: Follower 2 bây giờ sẽ hiển thị trạng thái "Offline" với chấm đỏ.
+Kết quả: Trong mục "Trạng thái hệ thống", Follower 2 (5002) bây giờ sẽ hiển thị trạng thái "Offline" với chấm đỏ.
 
 Bây giờ, Chèn một bản ghi mới (Tên = Test, Tuổi = 99, ...).
 
 Kết quả: Quan sát "Nhật ký hoạt động". Bạn sẽ thấy hệ thống chỉ Gửi sao chép tới Follower 1 mà không gửi cho Follower 2 nữa.
 
 Điều này chứng minh Leader đã nhận biết được lỗi và điều chỉnh hành vi sao chép, đảm bảo hệ thống không bị treo vì một nút đã chết.
+
+⚠️ Hạn chế & Hướng phát triển
+Điểm lỗi duy nhất (Single Point of Failure - SPOF): Prototype này đã xử lý được lỗi của Follower. Tuy nhiên, nếu Leader (nút 5000) bị tắt, toàn bộ hệ thống sẽ ngừng chấp nhận các thao tác ghi (Insert, Update, Delete) và giao diện web sẽ sập.
+
+Hướng phát triển: Bước tiếp theo để hoàn thiện hệ thống là triển khai cơ chế Bầu chọn Leader (Leader Election), cho phép một trong các Follower tự động "thăng chức" thành Leader mới nếu Leader cũ bị lỗi.
