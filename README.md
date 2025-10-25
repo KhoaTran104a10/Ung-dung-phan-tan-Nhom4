@@ -159,8 +159,11 @@ Bây giờ, Chèn một bản ghi mới (Tên = Test, Tuổi = 99, ...).
 Kết quả: Quan sát "Nhật ký hoạt động". Bạn sẽ thấy hệ thống chỉ Gửi sao chép tới Follower 1 mà không gửi cho Follower 2 nữa.
 
 Điều này chứng minh Leader đã nhận biết được lỗi và điều chỉnh hành vi sao chép, đảm bảo hệ thống không bị treo vì một nút đã chết.
+<<<<<<< HEAD
 
 ⚠️ Hạn chế & Hướng phát triển
 Điểm lỗi duy nhất (Single Point of Failure - SPOF): Prototype này đã xử lý được lỗi của Follower. Tuy nhiên, nếu Leader (nút 5000) bị tắt, toàn bộ hệ thống sẽ ngừng chấp nhận các thao tác ghi (Insert, Update, Delete) và giao diện web sẽ sập.
 
 Hướng phát triển: Bước tiếp theo để hoàn thiện hệ thống là triển khai cơ chế Bầu chọn Leader (Leader Election), cho phép một trong các Follower tự động "thăng chức" thành Leader mới nếu Leader cũ bị lỗi.
+=======
+>>>>>>> 7278dbe9c06361ae95b95682faedb7ca0010fba0
