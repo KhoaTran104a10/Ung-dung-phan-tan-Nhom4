@@ -1,43 +1,58 @@
 # nodes/leader.py
 import argparse
 import requests
-import uuid # 1. Thêm UUID
+import uuid
 from flask import Flask, request, jsonify, render_template
 from tinydb import TinyDB, Query, where
 from concurrent.futures import ThreadPoolExecutor
 import os
 
+# Biến toàn cục
 db = None
 FOLLOWER_URLS = []
 executor = ThreadPoolExecutor(max_workers=10)
 
-# --- Logic tìm kiếm (dùng chung) ---
+# ---------------------------
+# HÀM PHỤ TRỢ
+# ---------------------------
 def perform_search(db_instance, data):
+    """
+    Hàm tìm kiếm dữ liệu trong TinyDB dựa theo name, age, city.
+    Dùng chung cho cả Leader và Follower.
+    """
     try:
         search_name = data.get('name', '').strip()
         search_age = data.get('age', '').strip()
         search_city = data.get('city', '').strip()
         User = Query()
         conditions = []
+
         if search_name:
             conditions.append(where('name').test(lambda s: search_name.lower() in s.lower()))
         if search_age:
             try:
                 conditions.append(User.age == int(search_age))
-            except ValueError: pass
+            except ValueError:
+                pass
         if search_city:
             conditions.append(where('city').test(lambda s: search_city.lower() in s.lower()))
-        if not conditions: return []
+
+        if not conditions:
+            return []
+
+        # Kết hợp các điều kiện bằng toán tử AND
         final_condition = conditions.pop(0)
         for cond in conditions:
-            final_condition = (final_condition & cond)
+            final_condition &= cond
+
         return db_instance.search(final_condition)
     except Exception as e:
-        print(f"Lỗi khi thực hiện tìm kiếm: {e}")
+        print(f"Lỗi khi tìm kiếm: {e}")
         return []
 
-# ------------------------------------
-
+# ---------------------------
+# KHỞI TẠO ỨNG DỤNG LEADER
+# ---------------------------
 def create_app(db_path, followers_list, leader_port):
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
     
@@ -49,34 +64,36 @@ def create_app(db_path, followers_list, leader_port):
     app.config['LEADER_PORT'] = leader_port
     app.config['LEADER_NAME'] = f"Leader ({leader_port})"
     
-    # Tạo bản đồ (map) các Node
+    # Bản đồ node (Leader + Followers)
     app.config['NODE_MAP'] = {}
     app.config['NODE_MAP'][f"http://127.0.0.1:{leader_port}"] = app.config['LEADER_NAME']
     for i, url in enumerate(FOLLOWER_URLS):
         port = url.split(':')[-1]
         app.config['NODE_MAP'][url] = f"Follower {i+1} ({port})"
 
-    # --- 2. Hàm kiểm tra sức khỏe (Health Check) ---
+    # ---------------------------
+    # 1️.HÀM KIỂM TRA SỨC KHỎE CÁC NÚT
+    # ---------------------------
     def get_system_status():
         """
-        Kiểm tra trạng thái của tất cả các nút (Leader + Followers)
+        Trả về danh sách trạng thái (Online/Offline) của Leader và Followers.
         """
         nodes_list = []
-        health_status = {} # Dùng để lưu trạng thái cho logic sao chép
+        health_status = {}
 
-        # 1. Leader (luôn Online)
+        # Leader luôn online
         leader_url = f"http://127.0.0.1:{app.config['LEADER_PORT']}"
         nodes_list.append({"url": leader_url, "role": app.config['LEADER_NAME'], "status": "Online"})
-        health_status[app.config['LEADER_NAME']] = "Online"
+        health_status[app.config['LEADER_NAME']] = "Online" # Sử dụng tên làm key
 
-        # 2. Kiểm tra các Followers
+        # Kiểm tra Followers
         for url in FOLLOWER_URLS:
             node_name = app.config['NODE_MAP'][url]
             try:
-                response = requests.get(f"{url}/health", timeout=0.5) # Timeout 0.5s
+                response = requests.get(f"{url}/health", timeout=0.5)
                 if response.status_code == 200:
                     nodes_list.append({"url": url, "role": node_name, "status": "Online"})
-                    health_status[url] = "Online"
+                    health_status[url] = "Online" # Sử dụng URL làm key cho follower
                 else:
                     nodes_list.append({"url": url, "role": node_name, "status": "Offline"})
                     health_status[url] = "Offline"
@@ -86,45 +103,102 @@ def create_app(db_path, followers_list, leader_port):
         
         return nodes_list, health_status
 
-    # --- 3. Hàm sao chép (Broadcast) nâng cao ---
+    # ---------------------------
+    # 2️.HÀM SAO CHÉP DỮ LIỆU (Broadcast)
+    # ---------------------------
     def broadcast_request(endpoint, payload, log_messages, health_status):
         """
-        Gửi yêu cầu (insert, update, delete) đến các Follower đang Online.
+        Gửi yêu cầu insert/update/delete đến các Followers đang online.
         """
         online_followers = [url for url in FOLLOWER_URLS if health_status.get(url) == "Online"]
         
         def post_request(url):
             try:
                 requests.post(f"{url}/{endpoint}", json=payload, timeout=2)
-                return f"Gửi sao chép ({endpoint}) tới {app.config['NODE_MAP'][url]} thành công."
+                return f"Gửi {endpoint} tới {app.config['NODE_MAP'][url]} thành công."
             except Exception as e:
-                return f"Lỗi khi gửi sao chép ({endpoint}) tới {app.config['NODE_MAP'][url]}: {e}"
+                return f"Lỗi gửi {endpoint} tới {app.config['NODE_MAP'][url]}: {e}"
 
-        log_messages.append(f"Bắt đầu sao chép tới {len(online_followers)} Follower(s) đang Online...")
-        
-        # Gửi song song
+        log_messages.append(f"Bắt đầu sao chép tới {len(online_followers)} Follower đang Online...")
         futures = [executor.submit(post_request, url) for url in online_followers]
-        
-        # Thu thập log từ kết quả
         for future in futures:
             log_messages.append(future.result())
 
-    # --- API cho Giao diện Web (Client) ---
+    # ---------------------------
+    # ⭐ HÀM HELPER MỚI: LOGIC TÌM KIẾM TÁI SỬ DỤNG
+    # ---------------------------
+    def _perform_scatter_gather_search(search_payload, log_messages, health_status):
+        """
+        Hàm nội bộ thực hiện logic Scatter-Gather.
+        Trả về (all_results, message, message_type)
+        """
+        all_results = []
+        try:
+            if not any(search_payload.values()):
+                raise ValueError("Nhập ít nhất một điều kiện tìm kiếm.")
+            
+            log_messages.append(f"SCATTER: Truy vấn song song {search_payload}")
+            futures_map = {}
+            online_followers = [url for url in FOLLOWER_URLS if health_status.get(url) == "Online"]
+
+            # Gửi truy vấn song song đến các Follower
+            def fetch_search(url):
+                try:
+                    res = requests.post(f"{url}/local_search", json=search_payload, timeout=3)
+                    return res.json() if res.status_code == 200 else []
+                except Exception:
+                    return []
+
+            for url in online_followers:
+                futures_map[executor.submit(fetch_search, url)] = url
+
+            # Truy vấn local (Leader)
+            leader_name = app.config['LEADER_NAME']
+            local_results = perform_search(db, search_payload)
+            for r in local_results:
+                r['source_node'] = leader_name
+            all_results.extend(local_results)
+            log_messages.append(f"GATHER: {leader_name} có {len(local_results)} kết quả.")
+
+            # Nhận kết quả từ các Follower
+            for future in futures_map:
+                url = futures_map[future]
+                node_name = app.config['NODE_MAP'][url]
+                results = future.result()
+                for r in results:
+                    r['source_node'] = node_name
+                all_results.extend(results)
+                log_messages.append(f"GATHER: {node_name} có {len(results)} kết quả.")
+
+            log_messages.append(f"AGGREGATE: Tổng cộng {len(all_results)} kết quả.")
+            message = f"Tìm thấy {len(all_results)} kết quả."
+            return all_results, message, "success"
+        
+        except Exception as e:
+            message = f"Lỗi: {e}"
+            log_messages.append(f"Lỗi khi tìm kiếm: {e}")
+            return [], message, "error"
+
+    # ---------------------------
+    # 3️.GIAO DIỆN WEB
+    # ---------------------------
     @app.route('/')
     def index():
-        """ Hiển thị trang web chính. """
+        """Trang dashboard chính."""
         nodes_list, _ = get_system_status()
-        return render_template('index.html', 
-                               results=None, 
-                               message=None, 
-                               nodes=nodes_list,
-                               log_messages=None) # 4. Thêm log_messages=None
+        return render_template('index.html',
+                               results=None, message=None,
+                               nodes=nodes_list, log_messages=None,
+                               last_search=None) # Thêm last_search=None
 
+    # ---------------------------
+    # 4️.API: INSERT
+    # ---------------------------
     @app.route('/insert', methods=['POST'])
     def insert():
-        """ Xử lý yêu cầu INSERT (Tính năng 1 + 4) """
+        # (Không thay đổi, vẫn render results=None sau khi Chèn)
         nodes_list, health_status = get_system_status()
-        log_messages = [] # 4. Khởi tạo list log
+        log_messages = []
         message = ""
         message_type = "success"
         
@@ -132,207 +206,224 @@ def create_app(db_path, followers_list, leader_port):
             name = request.form['name']
             age = int(request.form['age'])
             city = request.form['city']
-            doc = {'name': name, 'age': age, 'city': city}
-            doc['_id'] = str(uuid.uuid4()) # 1. Gán _id duy nhất
-            
-            # 1. Ghi vào Leader
+
+            doc = {'_id': str(uuid.uuid4()), 'name': name, 'age': age, 'city': city}
             db.insert(doc)
-            log_messages.append(f"LEADER: Đã chèn '{name}' (ID: {doc['_id'][:8]}...) vào DB cục bộ.")
-            
-            # 2. Phát tán (broadcast) lệnh sao chép
-            payload = {"document": doc}
-            broadcast_request('replicate_insert', payload, log_messages, health_status)
-            
+            log_messages.append(f"LEADER: Đã chèn '{name}' (ID: {doc['_id'][:8]}...)")
+
+            broadcast_request('replicate_insert', {"document": doc}, log_messages, health_status)
             message = f"Thành công: Đã chèn '{name}'."
         except Exception as e:
-            message = f"Lỗi: {str(e)}"
+            message = f"Lỗi: {e}"
             message_type = "error"
-            log_messages.append(f"Lỗi nghiêm trọng khi chèn: {e}")
+            log_messages.append(f"Lỗi khi chèn: {e}")
         
-        return render_template('index.html', 
-                               results=None, 
-                               message=message, 
-                               message_type=message_type, 
-                               nodes=nodes_list,
-                               log_messages=log_messages) # 4. Truyền log ra
-    
-    # --- 1. API MỚI: UPDATE ---
+        return render_template('index.html', results=None, message=message,
+                               message_type=message_type, nodes=nodes_list,
+                               log_messages=log_messages, last_search=None)
+
+    # ---------------------------
+    # 5️.API: UPDATE (CẬP NHẬT)
+    # ---------------------------
     @app.route('/update', methods=['POST'])
     def update():
-        """ Xử lý yêu cầu UPDATE (Tính năng 1 + 4) """
+        """ 
+        Xử lý yêu cầu UPDATE và TẢI LẠI KẾT QUẢ TÌM KIẾM.
+        """
         nodes_list, health_status = get_system_status()
         log_messages = []
         message = ""
         message_type = "success"
+        all_results = None     # Mặc định là None
+        last_search_payload = None # Mặc định là None
         
         try:
+            # 1. THỰC HIỆN CẬP NHẬT
             doc_id = request.form['doc_id']
-            new_city = request.form['new_city']
+            new_name = request.form['name']
+            new_age = int(request.form['age']) 
+            new_city = request.form['city']
             
-            if not doc_id or not new_city:
-                raise ValueError("Thiếu ID hoặc tên Thành phố mới")
+            if not doc_id or not new_name or not new_city: 
+                raise ValueError("Thiếu thông tin cập nhật (ID, Tên, Tuổi, Thành phố)")
                 
             User = Query()
-            payload = {"_id": doc_id, "data": {"city": new_city}}
+            update_data = {"name": new_name, "age": new_age, "city": new_city}
+            payload = {"_id": doc_id, "data": update_data}
             
-            # 1. Cập nhật trên Leader
-            updated_count = db.update(payload['data'], User._id == doc_id)
+            updated_count = db.update(update_data, User._id == doc_id)
             if updated_count == 0:
                 raise ValueError(f"Không tìm thấy bản ghi có ID {doc_id} trên Leader.")
             
-            log_messages.append(f"LEADER: Đã cập nhật bản ghi {doc_id[:8]}... thành phố = {new_city}.")
-            
-            # 2. Phát tán
+            log_messages.append(f"LEADER: Đã cập nhật bản ghi {doc_id[:8]}... (Tên={new_name}, Tuổi={new_age}, TP={new_city}).")
             broadcast_request('replicate_update', payload, log_messages, health_status)
             message = f"Thành công: Đã cập nhật bản ghi {doc_id[:8]}..."
             
+            # 2. KIỂM TRA VÀ TÌM KIẾM LẠI
+            last_search_name = request.form.get('last_search_name')
+            last_search_age = request.form.get('last_search_age')
+            last_search_city = request.form.get('last_search_city')
+
+            # Nếu có thông tin tìm kiếm cũ (do JS gửi lên)
+            if last_search_name is not None and last_search_age is not None and last_search_city is not None:
+                last_search_payload = {
+                    "name": last_search_name,
+                    "age": last_search_age,
+                    "city": last_search_city
+                }
+                # Chỉ tìm lại nếu có ít nhất 1 tiêu chí
+                if any(v for v in last_search_payload.values() if v):
+                    log_messages.append("---")
+                    log_messages.append("Tự động tải lại kết quả tìm kiếm...")
+                    all_results, search_msg, search_msg_type = _perform_scatter_gather_search(
+                        last_search_payload, log_messages, health_status
+                    )
+                    message += f" | {search_msg}"
+                    if search_msg_type == "error":
+                        message_type = "error"
+
         except Exception as e:
             message = f"Lỗi: {str(e)}"
             message_type = "error"
             log_messages.append(f"Lỗi nghiêm trọng khi cập nhật: {e}")
 
         return render_template('index.html', 
-                               results=None, 
+                               results=all_results,         # Trả về kết quả mới
                                message=message, 
                                message_type=message_type, 
                                nodes=nodes_list,
-                               log_messages=log_messages)
+                               log_messages=log_messages,
+                               last_search=last_search_payload) # Trả về tiêu chí cũ
 
-    # --- 1. API MỚI: DELETE ---
+    # ---------------------------
+    # 6️.API: DELETE (CẬP NHẬT)
+    # ---------------------------
     @app.route('/delete', methods=['POST'])
     def delete():
-        """ Xử lý yêu cầu DELETE (Tính năng 1 + 4) """
+        """ 
+        Xử lý yêu cầu DELETE và TẢI LẠI KẾT QUẢ TÌM KIẾM.
+        """
         nodes_list, health_status = get_system_status()
         log_messages = []
         message = ""
         message_type = "success"
-        
+        all_results = None     # Mặc định là None
+        last_search_payload = None # Mặc định là None
+
         try:
+            # 1. THỰC HIỆN XÓA
             doc_id = request.form['doc_id']
             if not doc_id:
                 raise ValueError("Thiếu ID")
 
             User = Query()
-            payload = {"_id": doc_id}
-            
-            # 1. Xóa trên Leader
-            removed_count = db.remove(User._id == doc_id)
-            if removed_count == 0:
-                 raise ValueError(f"Không tìm thấy bản ghi có ID {doc_id} trên Leader.")
-            
+            removed = db.remove(User._id == doc_id)
+            if not removed: # db.remove trả về list các ID đã xóa
+                raise ValueError(f"Không tìm thấy bản ghi {doc_id}")
+
             log_messages.append(f"LEADER: Đã xóa bản ghi {doc_id[:8]}...")
-            
-            # 2. Phát tán
-            broadcast_request('replicate_delete', payload, log_messages, health_status)
+            broadcast_request('replicate_delete', {"_id": doc_id}, log_messages, health_status)
             message = f"Thành công: Đã xóa bản ghi {doc_id[:8]}..."
-            
+
+            # 2. KIỂM TRA VÀ TÌM KIẾM LẠI
+            last_search_name = request.form.get('last_search_name')
+            last_search_age = request.form.get('last_search_age')
+            last_search_city = request.form.get('last_search_city')
+
+            if last_search_name is not None and last_search_age is not None and last_search_city is not None:
+                last_search_payload = {
+                    "name": last_search_name,
+                    "age": last_search_age,
+                    "city": last_search_city
+                }
+                if any(v for v in last_search_payload.values() if v):
+                    log_messages.append("---")
+                    log_messages.append("Tự động tải lại kết quả tìm kiếm...")
+                    all_results, search_msg, search_msg_type = _perform_scatter_gather_search(
+                        last_search_payload, log_messages, health_status
+                    )
+                    message += f" | {search_msg}"
+                    if search_msg_type == "error":
+                        message_type = "error"
+
         except Exception as e:
-            message = f"Lỗi: {str(e)}"
+            message = f"Lỗi: {e}"
             message_type = "error"
-            log_messages.append(f"Lỗi nghiêm trọng khi xóa: {e}")
+            log_messages.append(f"Lỗi khi xóa: {e}")
 
         return render_template('index.html', 
-                               results=None, 
-                               message=message, 
+                               results=all_results,         # Trả về kết quả mới
+                               message=message,
                                message_type=message_type, 
                                nodes=nodes_list,
-                               log_messages=log_messages)
+                               log_messages=log_messages,
+                               last_search=last_search_payload) # Trả về tiêu chí cũ
 
+    # ---------------------------
+    # 7️.API: SEARCH (CẬP NHẬT)
+    # ---------------------------
     @app.route('/search', methods=['POST'])
     def search():
-        """ Xử lý yêu cầu SEARCH (Tính năng 4) """
+        """
+        Hàm SEARCH chính, giờ chỉ gọi hàm helper.
+        """
         nodes_list, health_status = get_system_status()
-        log_messages = [] # 4. Khởi tạo list log
-        all_results = []
-        message = ""
-        message_type = "success"
+        log_messages = []
         
-        try:
-            search_payload = {
-                "name": request.form.get('name', ''),
-                "age": request.form.get('age', ''),
-                "city": request.form.get('city', '')
-            }
-            if not any(search_payload.values()):
-                raise ValueError("Bạn phải nhập ít nhất một điều kiện tìm kiếm.")
-            
-            log_messages.append(f"SCATTER: Bắt đầu truy vấn song song (Query: {search_payload})")
-            
-            futures_map = {}
-            online_followers = [url for url in FOLLOWER_URLS if health_status.get(url) == "Online"]
-
-            # 2. SCATTER (chỉ tới các Follower online)
-            def fetch_search(url):
-                try:
-                    res = requests.post(f"{url}/local_search", json=search_payload, timeout=3)
-                    if res.status_code == 200:
-                        return res.json()
-                except Exception as e:
-                    print(f"Leader lỗi khi truy vấn {url}: {e}")
-                return [] 
-
-            for url in online_followers:
-                future = executor.submit(fetch_search, url)
-                futures_map[future] = url
-            
-            # 3. Bao gồm cả Leader
-            leader_name = app.config['LEADER_NAME']
-            local_results = perform_search(db, search_payload)
-            for res in local_results:
-                res['source_node'] = leader_name
-            all_results.extend(local_results)
-            log_messages.append(f"GATHER: {leader_name} tìm thấy {len(local_results)} kết quả.")
-
-            # 4. GATHER
-            for future in futures_map:
-                url = futures_map[future]
-                node_name = app.config['NODE_MAP'][url]
-                try:
-                    follower_results = future.result()
-                    for res in follower_results:
-                        res['source_node'] = node_name
-                    all_results.extend(follower_results)
-                    log_messages.append(f"GATHER: Nhận {len(follower_results)} kết quả từ {node_name}.")
-                except Exception as e:
-                     log_messages.append(f"GATHER: Lỗi khi lấy kết quả từ {node_name}: {e}")
-            
-            log_messages.append(f"AGGREGATE: Tổng hợp {len(all_results)} kết quả.")
-            message = f"Truy vấn tìm thấy tổng cộng {len(all_results)} kết quả."
+        search_payload = {
+            "name": request.form.get('name', ''),
+            "age": request.form.get('age', ''),
+            "city": request.form.get('city', '')
+        }
         
-        except Exception as e:
-            message = f"Lỗi: {str(e)}"
-            message_type = "error"
-            log_messages.append(f"Lỗi nghiêm trọng khi tìm kiếm: {e}")
-        
+        # Gọi hàm helper
+        all_results, message, message_type = _perform_scatter_gather_search(
+            search_payload, log_messages, health_status
+        )
+
         return render_template('index.html', 
                                results=all_results, 
-                               message=message, 
+                               message=message,
                                message_type=message_type, 
                                nodes=nodes_list,
-                               log_messages=log_messages) # 4. Truyền log ra
+                               log_messages=log_messages,
+                               last_search=search_payload) # Trả về tiêu chí tìm kiếm
 
-    # --- API nội bộ ---
-    
+    # ---------------------------
+    # 8️.API NỘI BỘ
+    # ---------------------------
     @app.route('/local_search', methods=['POST'])
     def local_search_api():
         data = request.get_json()
         results = perform_search(db, data)
         return jsonify(results), 200
             
-    # --- 2. API HEALTH CHECK CHO LEADER ---
     @app.route('/health', methods=['GET'])
     def health_check():
         return jsonify({"status": "ok"}), 200
             
     return app
 
+
+# ---------------------------
+# CHẠY CHƯƠNG TRÌNH CHÍNH
+# ---------------------------
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the Leader node.')
-    parser.add_argument('--port', type=int, required=True, help='Port to run on.')
-    parser.add_argument('--db', type=str, required=True, help='Path to TinyDB file.')
-    parser.add_argument('--followers', type=str, required=True, help='Comma-separated list of follower URLs.')
+    
+    # SỬA 3 DÒNG NÀY:
+    parser.add_argument('--port', type=int, required=True, help='Port để chạy.')
+    parser.add_argument('--db', type=str, required=True, help='Đường dẫn file TinyDB.')
+    parser.add_argument('--followers', type=str, required=True, help='Danh sách URL của Followers (phân cách bởi dấu phẩy).')
+    
     args = parser.parse_args()
     
     follower_list = args.followers.split(',')
+    
+    # Sửa lỗi: Đảm bảo thư mục 'data' tồn tại trước khi tạo app
+    db_dir = os.path.dirname(args.db)
+    if db_dir: # Nếu có chỉ định thư mục (vd: 'data/leader_db.json')
+        os.makedirs(db_dir, exist_ok=True)
+
     app = create_app(args.db, follower_list, args.port)
     app.run(port=args.port, debug=True, use_reloader=False)

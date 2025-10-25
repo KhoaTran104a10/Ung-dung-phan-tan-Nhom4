@@ -12,11 +12,11 @@
     --error-bg: #f8d7da;
     --error-text: #721c24;
     
-    /* 2. Màu trạng thái */
+    /* Màu trạng thái */
     --online-color: #28a745;
     --offline-color: #dc3545;
     
-    /* 1. Màu nút Sửa/Xóa */
+    /* Màu nút Sửa/Xóa */
     --update-color: #ffc107;
     --update-hover: #e0a800;
     --delete-color: #dc3545;
@@ -74,7 +74,7 @@ header h1 { margin: 0; font-size: 1.5rem; }
     margin-top: 0;
 }
 
-/* 2. Trạng thái hệ thống (Cập nhật) */
+/* Trạng thái hệ thống */
 .node-status-list { list-style: none; padding: 0; margin: 0; }
 .node-status-list li {
     display: flex;
@@ -109,7 +109,7 @@ header h1 { margin: 0; font-size: 1.5rem; }
 .node-status-list li:has(.offline) .node-status { color: var(--offline-color); background-color: #fbebee; }
 
 
-/* 4. Nhật ký hoạt động (Mới) */
+/* Nhật ký hoạt động */
 .log-card {
     max-height: 400px;
     overflow-y: auto;
@@ -134,7 +134,7 @@ header h1 { margin: 0; font-size: 1.5rem; }
     font-weight: bold;
 }
 
-/* Form (Không đổi) */
+/* Form*/
 .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
 .feature-form label { display: block; margin-top: 1rem; margin-bottom: 0.25rem; font-weight: 600; }
 .feature-form input[type="text"],
@@ -148,7 +148,7 @@ header h1 { margin: 0; font-size: 1.5rem; }
 .message.success { background-color: var(--success-bg); color: var(--success-text); }
 .message.error { background-color: var(--error-bg); color: var(--error-text); }
 
-/* Bảng kết quả (Cập nhật) */
+/* Bảng kết quả */
 .results-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 .results-table th, .results-table td { border-bottom: 1px solid var(--border-color); padding: 0.85rem 1rem; text-align: left; }
 .results-table th { background-color: #f9fafb; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: #555; }
@@ -162,7 +162,7 @@ tr[class*="source-leader"] .node-badge { background-color: var(--leader-color); 
 tr[class*A*="source-follower-1"] .node-badge { background-color: var(--follower1-color); }
 tr[class*="source-follower-2"] .node-badge { background-color: var(--follower2-color); }
 
-/* 1. Cột hành động (Mới) */
+/* Cột hành động */
 .action-buttons { width: 130px; text-align: right; }
 .action-buttons button {
     padding: 0.3rem 0.6rem;
@@ -186,4 +186,124 @@ tr[class*="source-follower-2"] .node-badge { background-color: var(--follower2-c
     .container { flex-direction: column; padding: 0 1rem; }
     .features-grid { grid-template-columns: 1fr; }
     .sidebar, .main-content { min-width: 100%; }
+}
+
+/* Lớp nền mờ phía sau */
+.modal-backdrop {
+    display: none; /* Ẩn mặc định */
+    position: fixed; /* Che toàn màn hình */
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Màu đen mờ 50% */
+    
+    /* Dùng Flexbox để căn giữa nội dung */
+    justify-content: center;
+    align-items: center;
+}
+
+/* Nội dung của modal */
+.modal-content {
+    background-color: #fff;
+    padding: 25px 30px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 500px;
+    position: relative; /* Để nút close có thể định vị */
+}
+
+/* Nút đóng (X) */
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.modal-close:hover,
+.modal-close:focus {
+    color: #000;
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    color: var(--primary-color);
+}
+
+/* Form bên trong modal */
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.modal-form label {
+    font-weight: 600;
+    margin-bottom: -5px;
+}
+.modal-form input[type="text"],
+.modal-form input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box; /* Quan trọng để padding không làm vỡ layout */
+}
+.modal-form button {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+}
+.modal-form button:hover {
+    background-color: var(--primary-hover);
+}
+
+/* Nút xác nhận xóa */
+#delete-confirmation-msg {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #333;
+}
+#delete-confirmation-msg strong {
+    color: var(--delete-color);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end; /* Đẩy các nút về bên phải */
+    gap: 10px;
+    margin-top: 20px;
+}
+.modal-actions button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.btn-cancel {
+    background-color: #6c757d; /* Màu xám */
+    color: white;
+}
+.btn-cancel:hover {
+    background-color: #5a6268;
+}
+/* Tái sử dụng style nút xóa */
+#confirm-delete-btn {
+    background-color: var(--delete-color);
+    color: white;
+}
+#confirm-delete-btn:hover {
+    background-color: var(--delete-hover);
 }

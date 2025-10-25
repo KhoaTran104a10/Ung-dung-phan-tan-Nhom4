@@ -39,7 +39,6 @@
         </aside>
 
         <main class="main-content">
-            
             {% if message %}
                 <div class="message {{ message_type }}">{{ message }}</div>
             {% endif %}
@@ -57,7 +56,6 @@
                         <button type="submit">Chèn (Insert)</button>
                     </form>
                 </div>
-
                 <div class="card">
                     <h2>Tính năng 2: Truy vấn song song (Scatter-Gather)</h2>
                     <form action="/search" method="POST" class="feature-form">
@@ -83,7 +81,8 @@
                                     <th>Tên</th>
                                     <th>Tuổi</th>
                                     <th>Thành phố</th>
-                                    <th>Hành động</th> </tr>
+                                    <th>Hành động</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 {% for item in results %}
@@ -96,8 +95,14 @@
                                         <td>{{ item.city }}</td>
                                         <td class="action-buttons">
                                             {% if item._id %}
-                                                <button class="btn-update" onclick="promptForUpdate('{{ item._id }}')">Sửa</button>
-                                                <button class="btn-delete" onclick="confirmDelete('{{ item._id }}')">Xóa</button>
+                                                <button class="btn-update" 
+                                                        onclick="openUpdateModal('{{ item._id }}', '{{ item.name }}', '{{ item.age }}', '{{ item.city }}')">
+                                                    Sửa
+                                                </button>
+                                                <button class="btn-delete" 
+                                                        onclick="openDeleteModal('{{ item._id }}', '{{ item.name }}')">
+                                                    Xóa
+                                                </button>
                                             {% else %}
                                                 <span class="no-action">Dữ liệu gốc</span>
                                             {% endif %}
@@ -114,41 +119,111 @@
         </main>
     </div>
 
+    <div id="update-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModals()">&times;</span>
+            <h2>Cập nhật bản ghi</h2>
+            <form id="update-form" class="modal-form">
+                <input type="hidden" id="update_doc_id" name="doc_id">
+                <label for="update_name">Tên:</label>
+                <input type="text" id="update_name" name="name" required>
+                <label for="update_age">Tuổi:</label>
+                <input type="number" id="update_age" name="age" required>
+                <label for="update_city">Thành phố:</label>
+                <input type="text" id="update_city" name="city" required>
+                <button type="submit">Xác nhận cập nhật</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="delete-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModals()">&times;</span>
+            <h2>Xác nhận xóa</h2>
+            <p id="delete-confirmation-msg">Bạn có chắc chắn muốn XÓA bản ghi cho: <strong><span id="delete-item-name"></span></strong>?</p>
+            <p>Hành động này sẽ được sao chép đến tất cả các nút.</p>
+            <input type="hidden" id="delete_doc_id">
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeModals()">Hủy</button>
+                <button type="button" id="confirm-delete-btn" class="btn-delete">Xác nhận Xóa</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Hàm POST data bằng form động
-        function post(path, params) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = path;
+    const lastSearch = {{ last_search | tojson | safe if last_search else 'null' }};
+    
+    function post(path, params) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = path;
 
-            for (const key in params) {
-                if (params.hasOwnProperty(key)) {
-                    const hiddenField = document.createElement('input');
-                    hiddenField.type = 'hidden';
-                    hiddenField.name = key;
-                    hiddenField.value = params[key];
-                    form.appendChild(hiddenField);
-                }
-            }
-            document.body.appendChild(form);
-            form.submit();
+        for (const key in params) {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = key;
+            hiddenField.value = params[key];
+            form.appendChild(hiddenField);
         }
 
-        // Hàm xử lý nút SỬA
-        function promptForUpdate(docId) {
-            const newCity = prompt("Nhập tên Thành phố mới cho bản ghi:\n(ID: " + docId.substring(0, 8) + "...)");
-            if (newCity && newCity.trim() !== "") {
-                post('/update', { doc_id: docId, new_city: newCity.trim() });
+        if (lastSearch && (path === '/update' || path === '/delete')) {
+            const searchParams = {
+                'last_search_name': lastSearch.name,
+                'last_search_age': lastSearch.age,
+                'last_search_city': lastSearch.city
+            };
+            for (const key in searchParams) {
+                const hiddenField = document.createElement('input');
+                hiddenField.type = 'hidden';
+                hiddenField.name = key;
+                hiddenField.value = searchParams[key];
+                form.appendChild(hiddenField);
             }
         }
 
-        // Hàm xử lý nút XÓA
-        function confirmDelete(docId) {
-            const confirmed = confirm("Bạn có chắc chắn muốn XÓA bản ghi này không?\n(ID: " + docId.substring(0, 8) + "...)\n\nHành động này sẽ được sao chép đến tất cả các nút!");
-            if (confirmed) {
-                post('/delete', { doc_id: docId });
-            }
-        }
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    const updateModal = document.getElementById('update-modal');
+    const deleteModal = document.getElementById('delete-modal');
+
+    function openUpdateModal(docId, name, age, city) {
+        document.getElementById('update_doc_id').value = docId;
+        document.getElementById('update_name').value = name;
+        document.getElementById('update_age').value = age;
+        document.getElementById('update_city').value = city;
+        updateModal.style.display = 'flex';
+    }
+
+    function openDeleteModal(docId, name) {
+        document.getElementById('delete_doc_id').value = docId;
+        document.getElementById('delete-item-name').innerText = name;
+        deleteModal.style.display = 'flex';
+    }
+
+    function closeModals() {
+        updateModal.style.display = 'none';
+        deleteModal.style.display = 'none';
+    }
+
+    document.getElementById('update-form').addEventListener('submit', function(e) {
+        e.preventDefault(); 
+        const docId = document.getElementById('update_doc_id').value;
+        const name = document.getElementById('update_name').value;
+        const age = document.getElementById('update_age').value;
+        const city = document.getElementById('update_city').value;
+        post('/update', { doc_id: docId, name: name, age: age, city: city });
+    });
+
+    document.getElementById('confirm-delete-btn').addEventListener('click', function() {
+        const docId = document.getElementById('delete_doc_id').value;
+        post('/delete', { doc_id: docId });
+    });
+
+    window.addEventListener('click', function(e) {
+        if (e.target == updateModal || e.target == deleteModal) closeModals();
+    });
     </script>
 </body>
 </html>
